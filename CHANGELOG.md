@@ -16,10 +16,26 @@ All notable changes to kage are recorded here. The format follows
 
 - Container-aware Chrome flags. kage detects a container from the `IN_DOCKER` environment variable or a `/.dockerenv` marker and, only there, drops the sandbox and adds `--disable-dev-shm-usage` (the default 64 MB `/dev/shm` is too small for Chrome on large pages). Outside a container the faster shared memory is left in place.
 - Asset downloads retry on a transient failure (a 403/429, a 5xx, or a network blip) with a short backoff, recovering files that bot-protection rejects on the first request of a burst. Permanent failures (404, 401, ...) are not retried.
+- `kage pack --format app` wraps the packed viewer in a double-click desktop app
+  with the site's favicon as the icon. On macOS it writes a `.app` bundle
+  (`Info.plist`, the viewer under `Contents/MacOS`, and an `.icns` generated from
+  the favicon); on Linux, with a Linux `--base`, it writes an AppImage-style
+  `.AppDir` and folds it into a single `.AppImage` when `appimagetool` is
+  installed. The icon is found in the mirror automatically (preferring a large
+  `apple-touch-icon.png`, then `favicon.png` or a PNG-based `favicon.ico`) and
+  can be overridden with `--icon`.
+- The release now ships a GUI-subsystem Windows base,
+  `kage_<version>_windows-gui_<arch>.zip`. Packing a viewer onto it with
+  `--format binary --base` produces a `.exe` that opens with no console window
+  behind it, the Windows equivalent of the `.app` double-click experience.
 
 ### Changed
 
 - Clearer crawl error reporting. Each failure is logged with a classified reason (`HTTP 403 Forbidden`, `timed out`, ...), the URL, and the page that referenced it, and the end-of-run summary lists what went wrong instead of printing only a count.
+- Cross-platform packing detects the base binary's target OS from its executable
+  header (ELF, PE, or Mach-O) rather than its file name, so a Windows viewer
+  always gets a `.exe` suffix and the run hint names the right platform even when
+  the base is named without one.
 
 ### Fixed
 
