@@ -7,6 +7,7 @@ require (
 	github.com/charmbracelet/fang v1.0.0
 	github.com/go-rod/rod v0.116.2
 	github.com/go-rod/stealth v0.4.9
+	github.com/klauspost/compress v1.18.6
 	github.com/spf13/cobra v1.10.2
 	golang.org/x/net v0.56.0
 )
