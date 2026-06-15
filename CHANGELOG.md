@@ -19,6 +19,10 @@ All notable changes to kage are recorded here. The format follows
 
 - Clearer crawl error reporting. Each failure is logged with a classified reason (`HTTP 403 Forbidden`, `timed out`, ...), the URL, and the page that referenced it, and the end-of-run summary lists what went wrong instead of printing only a count.
 
+### Fixed
+
+- The container image now runs. Chrome aborted on launch with `chrome_crashpad_handler: --database is required`, so kage disables Chrome's crash reporter inside a container, and the `kage` user now has a writable home (the mounted `/out` volume) so the default output, resume state, and Chrome's profile no longer fail with a permission error (issue #7).
+
 ## [0.1.1] - 2026-06-14
 
 ### Added
