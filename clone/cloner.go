@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/tamnd/kage/asset"
 	"github.com/tamnd/kage/browser"
@@ -43,6 +44,8 @@ type Cloner struct {
 	mu         sync.Mutex
 	seenAssets map[string]bool
 	enqueued   int // pages offered to the queue
+	crawlMu    sync.Mutex
+	nextCrawl  time.Time
 	wg         sync.WaitGroup
 	pageJobs   chan pageItem
 	assetJobs  chan assetItem
@@ -252,6 +255,9 @@ func (c *Cloner) processPage(ctx context.Context, j pageItem) {
 		c.stats.skipped.Add(1)
 		return
 	}
+	if !c.waitForCrawlDelay(ctx) {
+		return
+	}
 
 	res, err := c.pool.Render(ctx, j.u.String())
 	if err != nil {
@@ -322,6 +328,38 @@ func (c *Cloner) processPage(ctx context.Context, j pageItem) {
 	}
 	c.front.markVisited(key)
 	c.stats.recordPage(c.pagePathKey(j.u), deduped)
+}
+
+// waitForCrawlDelay spaces page render starts according to robots.txt
+// Crawl-delay. Workers reserve slots under a mutex so parallel renders do not
+// stampede after the same sleep.
+func (c *Cloner) waitForCrawlDelay(ctx context.Context) bool {
+	if !c.cfg.RespectRobots || c.robots == nil || c.robots.CrawlDelay <= 0 {
+		return true
+	}
+
+	c.crawlMu.Lock()
+	now := time.Now()
+	wait := time.Duration(0)
+	if now.Before(c.nextCrawl) {
+		wait = c.nextCrawl.Sub(now)
+		c.nextCrawl = c.nextCrawl.Add(c.robots.CrawlDelay)
+	} else {
+		c.nextCrawl = now.Add(c.robots.CrawlDelay)
+	}
+	c.crawlMu.Unlock()
+
+	if wait <= 0 {
+		return ctx.Err() == nil
+	}
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return ctx.Err() == nil
+	case <-ctx.Done():
+		return false
+	}
 }
 
 // processAsset downloads one asset, rewriting CSS references on the way, and

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/tamnd/kage/browser"
+	"github.com/tamnd/kage/robots"
 	"github.com/tamnd/kage/urlx"
 )
 
@@ -175,6 +176,27 @@ func TestPageKeyCollapsesDuplicates(t *testing.T) {
 	// Genuinely different pages must not collapse.
 	if c.pageKey(mustURL(t, "https://ex.com/a")) == c.pageKey(mustURL(t, "https://ex.com/b")) {
 		t.Error("distinct pages share a key")
+	}
+}
+
+func TestCrawlDelaySpacesPageStarts(t *testing.T) {
+	seed, _ := urlx.ParseSeed("https://ex.com")
+	cfg := DefaultConfig()
+	cfg.RespectRobots = true
+	c := New(seed, cfg, nil)
+	c.robots = &robots.Matcher{CrawlDelay: 20 * time.Millisecond}
+
+	ctx := context.Background()
+	if !c.waitForCrawlDelay(ctx) {
+		t.Fatal("first crawl-delay wait returned false")
+	}
+
+	start := time.Now()
+	if !c.waitForCrawlDelay(ctx) {
+		t.Fatal("second crawl-delay wait returned false")
+	}
+	if elapsed := time.Since(start); elapsed < 15*time.Millisecond {
+		t.Fatalf("second crawl-delay wait = %v, want at least 15ms", elapsed)
 	}
 }
 
