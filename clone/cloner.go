@@ -20,6 +20,7 @@ import (
 	"github.com/tamnd/kage/sanitize"
 	"github.com/tamnd/kage/urlx"
 	"golang.org/x/net/html"
+	"golang.org/x/time/rate"
 )
 
 // Logf is an optional sink for human-readable progress lines.
@@ -44,11 +45,20 @@ type Cloner struct {
 	mu         sync.Mutex
 	seenAssets map[string]bool
 	enqueued   int // pages offered to the queue
+<<<<<<< HEAD
 	crawlMu    sync.Mutex
 	nextCrawl  time.Time
 	wg         sync.WaitGroup
 	pageJobs   chan pageItem
 	assetJobs  chan assetItem
+=======
+
+	crawlLimiter *rate.Limiter
+
+	wg        sync.WaitGroup
+	pageJobs  chan pageItem
+	assetJobs chan assetItem
+>>>>>>> 4de9338011095dc29731b81b41387f56583f7b2a
 
 	muContent   sync.Mutex
 	seenContent map[string]string // sha-256 of page bytes -> first path written
@@ -147,6 +157,7 @@ func (c *Cloner) Run(ctx context.Context) (Result, error) {
 	defer func() { _ = c.pool.Close() }()
 
 	c.loadRobots(ctx)
+	c.setupCrawlDelayLimiter()
 
 	// Start workers.
 	var workers sync.WaitGroup
@@ -219,6 +230,19 @@ func (c *Cloner) loadRobots(ctx context.Context) {
 		return
 	}
 	c.robots = robots.Parse(string(data), "kage")
+}
+
+func (c *Cloner) setupCrawlDelayLimiter() {
+	delay := c.cfg.CrawlDelay
+	if delay <= 0 && c.cfg.RespectRobots && c.robots != nil {
+		delay = c.robots.CrawlDelay
+	}
+	if delay <= 0 {
+		c.crawlLimiter = nil
+		return
+	}
+
+	c.crawlLimiter = rate.NewLimiter(rate.Every(delay), 1)
 }
 
 // seedSitemaps adds in-scope sitemap URLs (from robots and the default path) to
