@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/tamnd/kage/clone"
 	"github.com/tamnd/kage/urlx"
@@ -96,7 +98,70 @@ func newCloneCmd() *cobra.Command {
 	fs.BoolVar(&f.refresh, "refresh", false, "re-render every page in place to pull in changed content")
 	fs.BoolVarP(&f.force, "force", "f", false, "delete any existing mirror for the host first")
 	fs.BoolVarP(&f.quiet, "quiet", "q", false, "suppress per-page progress lines")
+	setCloneUsage(cmd)
 	return cmd
+}
+
+type cloneFlagGroup struct {
+	title string
+	names []string
+}
+
+var cloneFlagGroups = []cloneFlagGroup{
+	{
+		title: "Output and State",
+		names: []string{"out", "reserved", "force", "refresh", "no-resume", "quiet", "help"},
+	},
+	{
+		title: "Crawl Scope",
+		names: []string{"max-pages", "max-depth", "traversal", "subdomains", "scope-prefix", "exclude", "no-robots", "crawl-delay", "no-sitemap"},
+	},
+	{
+		title: "Asset Localisation",
+		names: []string{"max-asset-mb", "keep-media", "skip-ext", "all-asset-hosts"},
+	},
+	{
+		title: "Rendering and Browser",
+		names: []string{"settle", "render-timeout", "scroll", "headful", "keep-noscript", "mobile", "chrome", "control-url"},
+	},
+	{
+		title: "Performance and Network",
+		names: []string{"workers", "asset-workers", "browser-pages", "timeout", "user-agent"},
+	},
+}
+
+func setCloneUsage(cmd *cobra.Command) {
+	cmd.SetUsageFunc(func(cmd *cobra.Command) error {
+		w := cmd.OutOrStdout()
+		fmt.Fprintf(w, "Usage:\n  %s\n", cmd.UseLine())
+		if cmd.Long != "" {
+			fmt.Fprintf(w, "\n%s\n", cmd.Long)
+		}
+		printCloneFlagGroups(w, cmd.Flags())
+		return nil
+	})
+	cmd.SetHelpFunc(func(cmd *cobra.Command, _ []string) {
+		_ = cmd.Usage()
+	})
+}
+
+func printCloneFlagGroups(w io.Writer, flags *pflag.FlagSet) {
+	for _, group := range cloneFlagGroups {
+		groupFlags := pflag.NewFlagSet(group.title, pflag.ContinueOnError)
+		groupFlags.SetOutput(w)
+		groupFlags.SortFlags = false
+		for _, name := range group.names {
+			flag := flags.Lookup(name)
+			if flag != nil {
+				groupFlags.AddFlag(flag)
+			}
+		}
+		if !groupFlags.HasAvailableFlags() {
+			continue
+		}
+		fmt.Fprintf(w, "\n%s:\n", group.title)
+		groupFlags.PrintDefaults()
+	}
 }
 
 func runClone(ctx context.Context, arg string, f *cloneFlags) error {
